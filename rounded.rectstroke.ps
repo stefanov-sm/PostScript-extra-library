@@ -1,0 +1,23 @@
+%!
+% Syntax:
+% X Y dX dY R rounded.rectstroke
+
+/rounded.rectstroke
+{
+ 3 dict begin
+  /radius exch def
+  /height exch def
+  /width exch def
+  gsave
+    translate
+    newpath
+    width 2 div 0 moveto
+    width 0 width height radius arcto
+    width height 0 height radius arcto
+    0 height 0 0 radius arcto
+    0 0 width 0 radius arcto closepath
+    16 {pop} repeat
+    stroke
+  grestore
+ end
+} bind def

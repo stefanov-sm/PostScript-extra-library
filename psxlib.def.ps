@@ -1,0 +1,1776 @@
+%!PS-Adobe
+% ----------------------------------
+%   File: psxlib.def.ps
+%   Author: SMS, Feb 2003 - Апр 2020
+% ----------------------------------
+%%BeginProlog
+
+/_ver (2.11.1) def
+/_update (20200427) def
+
+/psx.verctrl
+{
+	_ver cvr gt { (\r\n*** Error: PSX version is too old\r\n) = quit } if
+} def
+
+% Positioned text output routine definition
+% Syntax: <text> <x> <y> textOut
+% =======================================================================================
+/textOut {moveto show} bind def
+
+% Positioned text output with max width routine definition
+% Syntax: <text> <x> <y> <maxwidth> rtextOutW
+% =======================================================================================
+/textOutW {
+ 3 dict begin
+ /maxwidth exch def
+ moveto
+ dup stringwidth pop /actualwidth exch def
+ gsave
+ actualwidth maxwidth gt { maxwidth actualwidth div 1 scale } if
+ show
+ grestore
+ end
+} bind def
+
+% Positioned text output routine definition (r-justified)
+% Syntax: <text> <x> <y> rtextOut
+% =======================================================================================
+/rtextOut {
+ moveto
+ dup stringwidth neg exch neg exch
+ rmoveto show
+} bind def
+
+% Positioned text output routine definition (centered)
+% Syntax: <text> <x> <y> ctextOut
+% =======================================================================================
+/ctextOut {
+ moveto dup stringwidth
+ 2 div neg exch 2 div neg exch
+ rmoveto show
+} bind def
+
+% Positioned left vertical text output routine definition
+% Syntax: <text> <x> <y> lvTextOut
+% =======================================================================================
+/lvTextOut {
+ gsave
+ translate 90 rotate 0 0 moveto
+ show grestore
+} bind def
+
+% Positioned right vertical text output routine definition
+% Syntax: <text> <x> <y> rvTextOut
+% =======================================================================================
+/rvTextOut {
+ gsave
+ translate 270 rotate 0 0 moveto
+ show grestore
+} bind def
+
+% Positioned angle text output routine definition
+% Syntax: <text> <angle> <x> <y> angleTextOut
+% =======================================================================================
+/angleTextOut {
+ gsave
+ translate rotate 0 0 moveto
+ show grestore
+} bind def
+
+% Place EPS image definition
+% Syntax: <file> <scale> <x> <y> placeEPS
+% =======================================================================================
+/placeEPS 
+{
+    userdict begin
+    
+    /__be_state     save            def
+    /__ds_count     countdictstack  def
+    /__os_count     count 5 sub     def
+    /showpage       {}              def
+    
+    initgraphics
+    translate 
+    dup scale 
+    run
+    
+    count           __os_count sub  { pop } repeat
+    countdictstack  __ds_count sub  { end } repeat
+                    __be_state              restore
+    end
+} bind def
+
+% Place EPS image as full page background
+% Syntax: <file> setBackground
+% =======================================================================================
+/setBackground {
+ 1 0 0 placeEPS
+} bind def
+
+% Crop mark routine definition
+% Syntax: <x> <y> cropMark
+% =======================================================================================
+/cropMark {
+ newpath 
+ 0.3 setlinewidth moveto
+ currentpoint currentpoint 5 0 360 arc moveto
+ -10 0 rmoveto 20 0 rlineto -10 -10 rmoveto 0 20 rlineto
+ stroke
+} bind def
+
+% Set gray color
+% Syntax: <n_percent> gray
+% =======================================================================================
+/gray { 1 exch 100 div sub setgray } bind def
+
+% Set black or white color
+% Syntax:   black white
+% =======================================================================================
+/black { 0 setgray } bind def 
+/white { 1 setgray } bind def
+
+% Define mm unit
+% Syntax: <n> mm
+% =======================================================================================
+/mm { 72 mul 25.4 div } bind def
+
+% Define inch unit
+% Syntax: <n> in
+% =======================================================================================
+/in { 72 mul } bind def
+
+% =======================================================================================
+% Module name: KERN mailer OMR PostScript writer
+% Author: Stefan Stefanov, July 2005
+% =======================================================================================
+% These are KERN structural constants. 
+% All private object names are prefixed with two underscores (__)
+% =======================================================================================
+/omr_pgwidth    210     mm def
+/omr_hoffset    80      mm def
+/omr_voffset    14      mm def
+/omr_vsize      8       mm def
+/omr_hstep      4.233   mm def          % 1/6"
+/omr_linewidth  0.7     mm def
+
+/omr_pageno     0       def
+/omr_direction	true	def				% true means R-L reading direction, false L-R
+
+% =======================================================================================
+% Save OMR status
+% Syntax: OMR_SAVE -> OMR status dictionary
+% =======================================================================================
+/OMR_SAVE 
+{
+ 8 dict
+ dup /omr_pgwidth   omr_pgwidth   put
+ dup /omr_hoffset   omr_hoffset   put
+ dup /omr_voffset   omr_voffset   put
+ dup /omr_vsize     omr_vsize     put
+ dup /omr_hstep     omr_hstep     put
+ dup /omr_linewidth omr_linewidth put
+ dup /omr_pageno    omr_pageno    put
+ dup /omr_direction omr_direction put
+} bind def
+
+% =======================================================================================
+% Restore OMR status
+% Syntax: OMR_status_dictionary OMR_RESTORE -> -
+% =======================================================================================
+/OMR_RESTORE
+{
+	dup /omr_pgwidth   exch /omr_pgwidth   get store
+	dup /omr_hoffset   exch /omr_hoffset   get store
+	dup /omr_voffset   exch /omr_voffset   get store
+	dup /omr_vsize     exch /omr_vsize     get store
+	dup /omr_hstep     exch /omr_hstep     get store
+	dup /omr_linewidth exch /omr_linewidth get store
+	dup /omr_pageno    exch /omr_pageno    get store
+	    /omr_direction exch /omr_direction get store
+} bind def
+
+% =======================================================================================
+% DRAW A SINGLE LINE ON N-TH POSITION (PRIVATE)
+% =======================================================================================
+/__omr_drawline {
+	3 dict begin
+    /__omr_hpos exch def
+    /__omr_calc omr_direction { (sub) } { (add) } ifelse cvx def
+    0 setgray 0 setlinewidth newpath    
+    omr_pgwidth omr_hoffset sub __omr_hpos omr_hstep mul __omr_calc omr_voffset moveto
+    omr_linewidth 0 rlineto 0 omr_vsize neg rlineto omr_linewidth neg 0 rlineto closepath 
+    fill stroke
+    end
+} bind def
+
+% =======================================================================================
+% INIT POSITION (PUBLIC)
+% Defines the upper left corner coordinates of the first OMR mark (SZ or Sync)
+% Syntax: <X> <Y> OMR_INIT
+% =======================================================================================
+/OMR_INIT {
+    /omr_voffset exch store
+    /omr_hoffset exch store
+} bind def
+
+% =======================================================================================
+% SET DIRECTION (PUBLIC)
+% Defines the reading direction of the OMR
+% Syntax: (RL) OMR_DIR or (LR) OMR_DIR
+% =======================================================================================
+/OMR_DIR {
+	/omr_direction exch (RL) eq store
+} bind def
+
+% =======================================================================================
+% DRAW THE WHOLE THING (PUBLIC)
+% Syntax: <group> <inserts> OMR_DRAW
+% =======================================================================================
+/OMR_DRAW {
+		10 dict begin gsave
+    
+    /__omr_vl exch def /__omr_gr exch def
+  
+    % SYNCRO LINES
+    % ------------
+    0 __omr_drawline 2 __omr_drawline
+    
+    % PAGE SEQUENCE LINES
+    % -------------------    
+    /__omr_scratch omr_pageno 7 mod 1 add def
+    
+    __omr_scratch 2 mod 1 eq { 3 __omr_drawline } if /__omr_scratch __omr_scratch 2 idiv def
+    __omr_scratch 2 mod 1 eq { 4 __omr_drawline } if /__omr_scratch __omr_scratch 2 idiv def
+    __omr_scratch 2 mod 1 eq { 5 __omr_drawline } if 
+    
+    /omr_pageno ++
+  
+    % GROUPING LINE, I.E. NEW ENVELOPE
+    % --------------------------------  
+    __omr_gr cvi 1 eq { 6 __omr_drawline } if
+  
+    % INSERT LEAFLET LINES
+    % --------------------   
+    /__omr_scratch __omr_vl cvi def
+    
+    __omr_scratch 2 mod 1 eq { 7 __omr_drawline } if /__omr_scratch __omr_scratch 2 idiv def
+    __omr_scratch 2 mod 1 eq { 8 __omr_drawline } if /__omr_scratch __omr_scratch 2 idiv def
+    __omr_scratch 2 mod 1 eq { 9 __omr_drawline } if 
+  
+    grestore end
+} bind def
+
+% =======================================================================================
+% DRAW ONLY THE GROUPING AND INSERTION CONTROL MARKS (additive). SEQUENCE IS NOT AFFECTED
+% Syntax: <group> <inserts> OMR_PARTIAL
+% =======================================================================================
+/OMR_PARTIAL
+{
+		10 dict begin gsave
+    /__omr_vl exch def /__omr_gr exch def
+
+    % GROUPING LINE, I.E. NEW ENVELOPE
+    % --------------------------------  
+    __omr_gr cvi 1 eq { 6 __omr_drawline } if
+    
+    
+    % INSERT LEAFLET LINES
+    % --------------------   
+    /__omr_scratch __omr_vl cvi def
+    __omr_scratch 2 mod 1 eq { 7 __omr_drawline } if /__omr_scratch __omr_scratch 2 idiv def
+    __omr_scratch 2 mod 1 eq { 8 __omr_drawline } if /__omr_scratch __omr_scratch 2 idiv def
+    __omr_scratch 2 mod 1 eq { 9 __omr_drawline } if 
+  
+    grestore end
+} bind def
+
+% =======================================================================================
+% Catenate two strings
+% Syntax: <string_1> <string_2> cats -> string_1 + string_2
+% =======================================================================================
+/cats {
+ 3 dict begin
+ /S2 exch def
+ /S1 exch def
+
+ S1 length dup S2 length add string
+ dup 0 S1 putinterval 
+ dup 3 2 roll S2 putinterval 
+ end
+} bind def
+
+% =======================================================================================
+% Left pad a string to fixed length
+% Syntax: <string> <length> <padding> strpad -> string
+% =======================================================================================
+/strpad	% string length padding strpad -> string
+{
+	6 dict begin
+	/padding exch def
+	/padlength exch def
+	/strin exch def
+	
+	/strinlength strin length def
+	strinlength padlength ge
+	{
+		strin
+	}
+	{
+		/extralength padlength strinlength sub def
+		/extrastring padding 0 extralength getinterval def
+		extrastring strin cats
+	} ifelse
+	end
+}
+bind def
+
+% ==========================================================
+% Replace all occurencies of a substring
+% Syntax: <replace> <string> <find> replaceAll <string'>
+% ==========================================================
+/replaceAll
+{
+	() 4 1 roll
+	{
+		search
+		{
+			3 index cats 5 -1 roll
+			exch cats 4 1 roll
+		}
+		{
+			exch pop cats exit
+		}
+		ifelse
+	}
+	loop
+}
+bind def
+% =======================================================================================
+% Convert to string (extended, no buffer needed)
+% Syntax: <number> cvsx -> <string>
+% =======================================================================================
+/cvsx 
+{
+    3 dict begin /s 255 string def s cvs end
+} bind def
+
+% ======================================================================================
+% Print a string in the boxes of a form (Left & right aligned) - PostScript version
+% Author: SMS, May 2006
+% ======================================================================================
+% Syntax: 
+% <string> <X> <Y> <HStep> bxLShow
+% <string> <X> <Y> <HStep> bxRShow
+% ======================================================================================
+/bxLShow {
+    8 dict begin
+    /hstep          exch def
+    /vpos           exch def
+    /hpos           exch def
+    /boxedString    exch def
+    
+    0 1 boxedString length 1 sub
+    { 
+        /stringindex exch def
+        hpos stringindex hstep mul add vpos moveto
+        boxedString stringindex 1 getinterval show  
+    } for
+    end
+} bind def
+
+% ======================================================================================
+/bxRShow {
+    8 dict begin
+    /hstep          exch def
+    /vpos           exch def
+    /hpos           exch def
+    /boxedString    exch def
+    /bsl boxedString length 1 sub def
+    /hpos hpos hstep bsl mul sub def
+    
+    0 1 bsl
+    { 
+        /stringindex exch def
+        hpos stringindex hstep mul add vpos moveto
+        boxedString stringindex 1 getinterval show  
+    } for
+    end
+} bind def
+
+% =======================================================================================
+/bufferSize 4096 def        % Line buffer size; To be adjusted if needed        
+/fieldSeparator (|) def     % Separator between fields; To be adjusted if needed
+
+% =======================================================================================
+/setBufferSize
+{
+    /bufferSize exch store
+} def
+
+/setDefaultFieldSeparator
+{
+    /fieldSeparator exch store
+} def
+
+% =======================================================================================
+/documentMerge {
+ /documentMergeProcedure exch def
+ /documentMergeVarNames exch def
+ /documentMergeMaxItems documentMergeVarNames length 1 sub def
+ /documentOver false def
+ {
+ /lineBuffer bufferSize string def                       % Create a string buffer
+ documentMergeVarNames { () def } forall                 % Assign empty strings to all variables
+ currentfile lineBuffer readline                         % Read a line from the file
+ not { /documentOver true def } if                       % Exit the loop when finished
+ /currentLine exch def 
+ currentLine () eq { exit } if
+ currentLine (==END=OF=LINE=DATA==) anchorsearch { pop pop exit } { pop } ifelse
+ /currentLineOver false def
+ /currentFieldPosition 0 def
+ {
+     currentLine fieldSeparator search
+     {
+         /currentFieldValue exch def
+         pop
+         /currentLine exch def
+     }
+     {
+         /currentFieldValue exch def
+         /currentLineOver true def
+     } ifelse
+     currentFieldPosition documentMergeMaxItems le
+     {
+         documentMergeVarNames currentFieldPosition get 
+         currentFieldValue def
+     } if
+     /currentFieldPosition currentFieldPosition 1 add def
+     currentLineOver { exit } if
+ } loop
+ % ===========================================
+ % Execute the handler procedure for each line
+ % ===========================================
+ documentMergeProcedure run
+ documentOver { exit } if
+ } loop
+} bind def
+
+% =======================================================================================
+% Barcode 3 of 9 with and without checksum character formatting (Using Xerox font MB17I)
+% =======================================================================================
+% Private; Get the value of a character in 3 of 9 terms
+% =======================================================================================
+/BC3OF9Chars (0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%) def
+/BC3OF9CharValue {
+    BC3OF9Chars exch search
+    {
+        exch pop exch pop
+        length
+    }
+    {
+        ERROR_INVALID_BARCODE_3_OF_9_CHARACTER
+    } ifelse
+} bind def
+
+% =======================================================================================
+/BC3OF9CS {
+    /BC3OF9Input exch def
+    /BC3OF9CheckSum 0 def
+    0 1 BC3OF9Input length 1 sub
+    { 
+        BC3OF9Input exch 1 getinterval
+        /BC3OF9CheckSum exch BC3OF9CharValue BC3OF9CheckSum add def 
+    } for
+    
+    (*) BC3OF9Input cats 
+    BC3OF9Chars BC3OF9CheckSum cvi 43 mod 1 getinterval cats 
+    (*) cats
+} bind def
+
+% =======================================================================================
+/BC3OF9 {
+    /BC3OF9Input exch def
+    0 1 BC3OF9Input length 1 sub
+    { 
+        BC3OF9Input exch 1 getinterval
+        BC3OF9CharValue pop
+    } for
+    (*) BC3OF9Input cats (*) cats
+} bind def
+
+% =======================================================================================
+% Barcode 128 code structurals  (Using Xerox font MB021)
+% =======================================================================================
+/BC128Chars         
+<202122232425262728292A2B2C2D2E2F
+ 303132333435363738393A3B3C3D3E3F
+ 404142434445464748494A4B4C4D4E4F
+ 505152535455565758595A5B5C5D5E5F
+ 606162636465666768696A6B6C6D6E6F
+ 707172737475767778797A7B7C7D7E7F
+   A1A2A3A4A5A6A7A8A9AAAB>          
+def
+                       
+/BC128StartC        <AA>    def
+/BC128StartCValue   105     def
+/BC128Stop          <AB>    def
+/BC128Modulus       103     def
+
+% =======================================================================================
+% Convert a number or a numeric string into a Code128C printable string
+% Syntax: <number or string> BC128C -> string
+% =======================================================================================
+/BC128C {
+    /BC128Input     exch def
+    /BC128Out       BC128StartC def                                         % BC128Out = BC128StartC;
+    /BC128Buffer    128 string def                                          % 
+    /BC128Input     BC128Input BC128Buffer cvs def                          % BC128Input = '' + BC128Input;
+    /BC128Sum       BC128StartCValue def                                    % BC128Sum = BC128StartCValue;
+    
+    BC128Input length 2 mod 0 ne                                            % if (BC128Input.length % 2 != 0)
+    {                                                                       % {
+        /BC128Input (0) BC128Input cats def                                 %   BC128Input = '0' + BC128Input;
+    } if                                                                    % };
+    
+    0 1 BC128Input length 2 div 1 sub                                       % for (BC128Pos = 0; BC128Pos < BC128Input.length/2; BC128Pos++)
+    {                                                                       % {
+        /BC128Pos       exch def                                            %
+        /BC128Val       BC128Input BC128Pos 2 mul 2 getinterval cvi def     %  BC128Val = parseInt(BC128Input.substr(BC128Pos * 2, 2), 10);
+        /BC128Out       BC128Out BC128Chars BC128Val 1 getinterval cats def %  BC128Out = BC128Out + BC128Chars[BC128Val];
+        /BC128Sum       BC128Sum BC128Val BC128Pos 1 add mul add def        %  BC128Sum = BC128Sum + (BC128Pos + 1) * BC128Val;
+    } for                                                                   % };
+    
+    BC128Out BC128Chars BC128Sum BC128Modulus mod 1 getinterval cats        % BC128Out = BC128Out + BC128Chars[BC128Sum % 103] + BC128Stop;
+    BC128Stop cats
+} def
+
+% =====================================================================================================================
+% Syntax: <lpParamsDictionary> linePrinter -> none
+%
+% Line data must follow the linePrinter command and finish with
+% ==END=OF=LINEPRINTER=DATA==
+%
+% lpParamsDictionary contents: firstPageX, firstPageY, nextPageX, nextPageY, vStep, firstPageHeight, nextPageHeight
+% and a beforePage callback method (optional). The beforePage receives lpParamsDictionary on the stack when called.
+% pageNo element (1-based) is added to lpParamsDictionary and updated by linePrinter.
+% =====================================================================================================================
+/linePrinter {
+    /lpdict 10 dict def lpdict begin
+    
+    /lp_params exch def
+    
+    /fireBeforePage { 
+        { lp_params /beforePage get } stopped not 
+        { 
+            lp_params exch end 
+            exec 
+            lpdict begin 
+        } if 
+    } def
+    
+    /testFormFeed {
+        (\f) anchorsearch 
+        { pop pop /formFeed true def } 
+        { pop /formFeed false def } ifelse 
+    } def
+    
+    lp_params /pageNo 1 put 
+    gsave
+    
+    % if the lp_params.beforePage callback method is defined then push lp_params and call it
+    % --------------------------------------------------------------------------------------
+    fireBeforePage
+    lp_params /firstPageX get lp_params /firstPageY get translate 0 0 moveto
+    
+    {
+    
+        /buffer 1024 string def currentfile buffer readline
+        /fileover exch not def
+        /textLine exch def
+        textLine (==END=OF=LINE=DATA==) anchorsearch { pop pop exit } { pop } ifelse
+        
+        % if lp_params.pageNo == 1 then lp_height = lp_params.firstPageHeight else lp_height = lp_params.nextPageHeight;
+        % --------------------------------------------------------------------------------------------------------------
+        lp_params /pageNo get 1 eq 
+            { /lp_height lp_params /firstPageHeight get def } 
+            { /lp_height lp_params /nextPageHeight  get def } 
+        ifelse
+
+        % Check for FF and clear it if it's there
+        % ---------------------------------------       
+        textLine testFormFeed
+        formFeed { /textLine textLine 1 textLine length 1 sub getinterval def } if
+
+        % If the current poin is lower than the limit or FF then handle a page eject
+        % --------------------------------------------------------------------------
+        currentpoint exch pop neg lp_height ge formFeed or
+        {   
+            % eject the current page and start a new one
+            % ------------------------------------------
+            showpage
+            % Increment pageNo
+            % ----------------
+            lp_params /pageNo lp_params /pageNo get 1 add put 
+            % if the lp_params.beforePage callback method is defined then push lp_params and call it
+            % --------------------------------------------------------------------------------------
+            fireBeforePage
+            % set current position to the logical start of next page
+            % ------------------------------------------------------
+            lp_params /nextPageX get lp_params /nextPageY get translate 0 0 moveto
+        } if
+        
+        % Print a line of text. Position to the next line 
+        % -----------------------------------------------
+        textLine show currentpoint exch pop 0 exch lp_params /vStep get sub moveto
+        fileover { exit } if
+        
+    } loop
+    grestore
+    end
+} bind def
+
+% =====================================================================================================================
+% Page numbering commands
+% Syntax: <initial_number> initPageNumber
+% Syntax: <X> <Y> placePageNumber
+% =====================================================================================================================
+/currentPageNumber  1 def
+/initPageNumber { /currentPageNumber exch def } def
+/placePageNumber {
+    2 dict begin
+    moveto 
+    currentPageNumber /s 20 string def s cvs show
+    end
+    /currentPageNumber ++
+} bind def
+
+% =====================================================================================================================
+% Static variable definition (into the current dictionary)
+% Syntax: <Key> <Value> sdef
+% =====================================================================================================================
+/sdef {
+    /__val exch def /__key exch def
+    mark
+    { currentdict __key get } stopped { __key __val def } if
+    cleartomark
+} bind def
+         
+% =====================================================================================================================
+% Format integer with leading zeroes
+% Syntax: <number> <length> formatInteger
+% =====================================================================================================================
+/formatInteger 
+{ 
+    4 dict begin 
+    /nChars exch def 
+    /sBuffer 20 string def
+    /zeroes (00000000000000000000) def 
+    /sNumber exch sBuffer cvs def 
+    zeroes 0 nChars sNumber length sub getinterval sNumber cats 
+    end 
+} bind def 
+
+% =====================================================================================================================
+% Format a numeric string with 2 decimal positions (currency)
+% Syntax: <string> formatCurr
+% =====================================================================================================================
+/formatCurr
+{
+    10 dict begin
+	(.) search
+	{
+		/int exch def pop
+		/fra exch def
+		fra length 0 eq { /fra (00) def } if
+		fra length 1 eq { /fra fra (0) cats def } if
+		fra length 3 ge 
+		{ 
+			/fral fra 0 2 getinterval cvi def
+			/frah fra 2 1 getinterval cvi def
+			frah 5 ge { /fral fral 1 add def } if
+			/fra fral cvsx def
+		} if
+	}
+	{
+		/int exch def
+		/fra (00) def
+	} ifelse
+	int length 0 eq { /int (0) def } if
+	int (.) cats fra cats
+	end
+} bind def
+
+% =====================================================================================================================
+% Format string to hexadecimal dump
+% Syntax: <string> hexdump
+% =====================================================================================================================
+/hexdump
+{
+ 3 dict begin
+    /s exch def /o () def /hexdigits (0123456789ABCDEF) def
+    0 1 s length 1 sub {
+        s exch get dup
+        16 idiv hexdigits exch 1 getinterval o exch cats /o exch def
+        16 mod  hexdigits exch 1 getinterval o exch cats /o exch def
+    } for o
+ end
+} bind def
+
+% =====================================================================================================================
+/printPSXVersion 
+{ 
+ 10 dict begin gsave
+ /ps.s { 1.41 1 scale /R 20 mm def /RE R def /A 0 def /nsteps 120 def newpath 2 setlinewidth nsteps { /hs R A sin mul def /vs R A cos mul def /he RE A sin mul def /ve RE A cos mul def hs vs moveto he ve lineto /A A 360 nsteps div sub def /RE RE 70 nsteps div add def } repeat stroke } def
+ /Courier 24 selectfont (PostScript extra library) 105 mm 206 mm ctextOut 
+ 
+ << /Human.readable true /Encoding /Barcode.128B /Height 0.4 in /Width 90 mm >> setbarcode
+ 110 mm 0.5 in moveto (ver <%=_ver=%> update <%=_update=%>) xpSubst barcode 
+ 
+ 105 mm 150 mm translate 0.5 0.5 scale -15 rotate 0.07 0.5 0.45 setrgbcolor ps.s
+ 
+ 0.29 0.29 1.41 mul scale ps.s
+ 0.29 0.29 1.41 mul scale ps.s
+ 0.29 0.29 1.41 mul scale ps.s
+ 0.29 0.29 1.41 mul scale ps.s
+ 0.29 0.29 1.41 mul scale ps.s
+ 0.29 0.29 1.41 mul scale ps.s
+ 
+ grestore showpage end 
+} def
+% =======================================================================================
+% Media size control, predefined media sizes
+% =======================================================================================
+% Syntax:
+% nWidth nHeight    setMediaSize
+%
+% *** Millimeters and inches vertical i.e. measured from the upper left corner 
+%
+% verticalPosition	mmv
+% verticalPosition	inv 
+
+% =======================================================================================
+/A4         { 210 mm 297 mm } def
+/A4L        { 297 mm 210 mm } def
+/A3         { 297 mm 420 mm } def
+/A3L        { 420 mm 297 mm } def
+/Letter     { 8.5 in 11  in } def
+/LetterL    { 11  in 8.5 in } def
+/Legal      { 11  in 17  in } def
+/LegalL     { 17  in 11  in } def
+
+/config.mediaHeight 297 mm def
+
+/setMediaSize       
+{ 
+	3 dict begin
+	/__my exch def 
+	/__mx exch def 
+	
+	/config.mediaHeight __my store
+	
+	<< /PageSize [__mx __my] >> setpagedevice
+	end
+} def
+
+/mmv { mm config.mediaHeight exch sub } def
+/inv { in config.mediaHeight exch sub } def
+
+% =======================================================================================
+% Media control, plex control and output offseting control
+% =======================================================================================
+% Syntax:
+% (sMedianame)      setMediaByName
+% (sMediacolor)     setMediaByColor
+% nTrayNumber       setPaperTray
+% true|false        setDuplex
+% jogOutput
+
+% =======================================================================================
+/setMediaByName     { 3 dict begin /__mn exch def << /MediaType      __mn >> setpagedevice end } def
+/setMediaByColor    { 3 dict begin /__mc exch def << /MediaColor     __mc >> setpagedevice end } def
+/setPaperTray       { 3 dict begin /__mp exch def << /MediaPosition  __mp >> setpagedevice end } def
+/setDuplex          { 3 dict begin /__dm exch def << /Duplex         __dm >> setpagedevice end } def
+/jogStatus          0 def 
+/jogOutput          { << /Jog jogStatus >> setpagedevice /jogStatus jogStatus 3 xor store } def
+
+% =======================================================================================
+% Default file paths and canonical file name resolution
+% Syntax: [(path 1/) (path 2/) .. (path i/)] setFilePaths
+% =======================================================================================
+/config.filePaths [] def 
+/setFilePaths 
+{ 
+	/config.filePaths exch store 
+} def
+
+% =======================================================================================
+% Find a file in the list of paths defined by setFilePaths
+% Syntax: (file name) findFile -> (full file name) true
+%                              -> false
+% =======================================================================================
+/findFile 
+{	
+	5 dict begin
+	
+	/fileName exch def 
+	/fullFileName () def
+	/fileFound false def 
+	
+	/f.Paths config.filePaths length 1 add array def 
+	f.Paths 0 () put f.Paths 1 config.filePaths putinterval 
+	
+	mark f.Paths 
+	{ 
+		fileName cats dup /fullFileName exch def status { /fileFound true def exit } if
+	} forall cleartomark
+
+	fileFound { fullFileName true } { false } ifelse 
+	
+	end
+} bind def
+
+% =======================================================================================
+% Expression substitution in a string in ASP style
+% Syntax: (text .. <%= expression =%> .. text) xpSubst -> (text .. result_text .. text)
+% result_text length is limited to 255 characters
+% =======================================================================================
+/xpSubst
+{
+	10 dict begin /inputString exch def 
+	{
+		inputString (<%=) search
+		{
+			/prefix exch def pop
+			/inputString exch def
+			/prefixFound true def
+		} 
+		{ pop /prefixFound false def } ifelse
+		
+		inputString (=%>) search
+		{
+			/expression exch def pop
+			/suffix exch def
+			/suffixFound true def
+		}
+		{ pop /suffixFound false def } ifelse
+
+		prefixFound suffixFound and 
+		{ 
+			/sBuffer 255 string def
+			/inputString prefix expression cvx exec sBuffer cvs cats suffix cats def 
+		} 
+		{
+			prefixFound not suffixFound not and { exit } { EXPRESSION_SUBST_INVALID_SYNTAX } ifelse 
+		} ifelse
+	} loop
+	inputString	end
+} bind def
+
+% ============================================================================================================
+/BC.args
+<<
+ /Width	 			0
+ /Height 			72
+ /Encoding			/Barcode.39
+ /Human.readable	false
+>> def
+
+/BC39.mode			 false		def
+/BC39.factor		 1.45		def
+/BC39.Bars
+<<
+ /_SS (1211212111) /_45 (1211112121) /_36 (1212121111) /_37 (1112121211) /_32 (1221112111) 
+ /_46 (2211112111) /_47 (1212111211) /_43 (1211121211) /_48 (1112212111) /_49 (2112111121) 
+ /_50 (1122111121) /_51 (2122111111) /_52 (1112211121) /_53 (2112211111) /_54 (1122211111) 
+ /_55 (1112112121) /_56 (2112112111) /_57 (1122112111) /_65 (2111121121) /_66 (1121121121) 
+ /_67 (2121121111) /_68 (1111221121) /_69 (2111221111) /_70 (1121221111) /_71 (1111122121) 
+ /_72 (2111122111) /_73 (1121122111) /_74 (1111222111) /_75 (2111111221) /_76 (1121111221) 
+ /_77 (2121111211) /_78 (1111211221) /_79 (2111211211) /_80 (1121211211) /_81 (1111112221) 
+ /_82 (2111112211) /_83 (1121112211) /_84 (1111212211) /_85 (2211111121) /_86 (1221111121) 
+ /_87 (2221111111) /_88 (1211211121) /_89 (2211211111) /_90 (1221211111) 
+>> def
+% ============================================================================================================
+/BC128.Bars
+[
+ (212222) (222122) (222221) (121223) (121322) (131222) (122213) (122312) (132212) (221213) 
+ (221312) (231212) (112232) (122132) (122231) (113222) (123122) (123221) (223211) (221132) 
+ (221231) (213212) (223112) (312131) (311222) (321122) (321221) (312212) (322112) (322211) 
+ (212123) (212321) (232121) (111323) (131123) (131321) (112313) (132113) (132311) (211313) 
+ (231113) (231311) (112133) (112331) (132131) (113123) (113321) (133121) (313121) (211331) 
+ (231131) (213113) (213311) (213131) (311123) (311321) (331121) (312113) (312311) (332111) 
+ (314111) (221411) (431111) (111224) (111422) (121124) (121421) (141122) (141221) (112214) 
+ (112412) (122114) (122411) (142112) (142211) (241211) (221114) (413111) (241112) (134111) 
+ (111242) (121142) (121241) (114212) (124112) (124211) (411212) (421112) (421211) (212141) 
+ (214121) (412121) (111143) (111341) (131141) (114113) (114311) (411113) (411311) (113141) 
+ (114131) (311141) (411131)
+] def
+% ============================================================================================================
+/EAN13.Symbols
+[
+ [ (3211) (2221) (2122) (1411) (1132) (1231) (1114) (1312) (1213) (3112) ]
+ [ (1123) (1222) (2212) (1141) (2311) (1321) (4111) (2131) (3121) (2113) ]
+] def
+
+/EAN13.Digit0
+[
+ [0 0 0 0 0 0] [0 0 1 0 1 1] [0 0 1 1 0 1] [0 0 1 1 1 0] [0 1 0 0 1 1] 
+ [0 1 1 0 0 1] [0 1 1 1 0 0] [0 1 0 1 0 1] [0 1 0 1 1 0] [0 1 1 0 1 0]
+] def
+
+% ============================================================================================================
+/BCI25.Bars [(11221) (21112) (12112) (22111) (11212) (21211) (12211) (11122) (21121) (12121)] def
+
+% ============================================================================================================
+/BC.mark
+{
+    /stringWidth	exch	def
+    /BCString       exch    def
+    /current.X      0       def
+    /current.Y      0       def
+    
+    BC.args /Width get 0 ne
+    {
+    	/barWidth BC.args /Width get stringWidth div def
+    }
+    {
+    	/barWidth       1       def
+    } ifelse
+
+    BC.args /Human.readable get 
+    {
+    	gsave
+    	/Courier 8 selectfont
+    	BC.text stringwidth pop stringWidth exch div barWidth mul
+    	current.X current.Y moveto 1 scale BC.text show
+    	grestore
+    	/current.Y current.Y 5.7 add def
+    } if
+    
+    /barHeight BC.args /Height get current.Y sub def
+    % ===========================================
+    /mode true def
+    /BC.__toggleMode
+    { 
+        /mode mode not def 
+    } def
+    % ===========================================
+    /BC.__markBar
+    {
+        /bWidth exch def
+        bWidth 1 ne BC39.mode and
+        { 
+        	/bWidth bWidth BC39.factor mul def
+    	} if
+    	
+    	/bWidth bWidth barWidth mul def
+        mode
+        {
+            newpath
+            current.X current.Y moveto bWidth 0 rlineto 0 barHeight rlineto bWidth neg 0 rlineto 
+            closepath fill stroke
+        } if
+        /current.X current.X bWidth add def
+        BC.__toggleMode
+    } def
+    % ===========================================
+    0 1 BCString length 1 sub
+    {
+        BCString exch 1 getinterval cvi BC.__markBar
+    } for
+    % ===========================================
+    
+} def
+% ============================================================================================================
+/BC.calcw
+{
+	/sinput exch def
+	/swidth 0 def
+	/stringWidth 0 store
+	0 1 sinput length 1 sub
+	{
+		sinput exch 1 getinterval
+		cvi
+		dup 1 ne BC39.mode and
+        { 
+        	BC39.factor mul
+    	} if
+    	/stringWidth exch stringWidth add def
+    }
+    for
+    stringWidth
+} def
+% ============================================================================================================
+/setbarcode
+{
+	3 dict begin
+	{
+		/v exch def /k exch def
+		BC.args k v put
+	} forall
+	end
+} def
+% ============================================================================================================
+/barcode
+{
+	20 dict begin
+	gsave
+	currentpoint translate
+	dup /BC.rawText exch def
+
+	/BC.text () def /pos 0 def BC.rawText
+	{
+		128 lt
+		{
+			/BC.text BC.text BC.rawText pos 1 getinterval cats def
+		} if 
+		/pos ++	
+	} forall
+	
+	BC.args /Encoding get load exec
+	grestore
+	end
+} def
+% ============================================================================================================
+/Barcode.128C 
+{
+	/BC128.StartC        (211232)   def
+	/BC128.StartCValue   105        def
+	/BC128.Stop          (2331112)  def
+	/BC128.Modulus       103        def
+	
+    /BC128.Input         exch                         def
+    /BC128.Out           BC128.StartC                 def                    % BC128.Out = BC128.StartC;
+    /BC128.Buffer        128 string                   def                    % 
+    /BC128.Input         BC128.Input BC128.Buffer cvs def                    % BC128.Input = '' + BC128.Input;
+    /BC128.Sum           BC128.StartCValue            def                    % BC128.Sum = BC128.StartCValue;
+    
+    BC128.Input length 2 mod 0 ne                                            % if (BC128.Input.length % 2 != 0)
+    {                                                                        % {
+        /BC128.Input (0) BC128.Input cats def                                %   BC128.Input = '0' + BC128.Input;
+    } if                                                                     % };
+    
+    0 1 BC128.Input length 2 div 1 sub                                       % for (BC128.Pos = 0; BC128.Pos < BC128.Input.length/2; BC128.Pos++)
+    {                                                                        % {
+        /BC128.Pos       exch def                                            %
+        /BC128.Val       BC128.Input BC128.Pos 2 mul 2 getinterval cvi def   %  BC128.Val = parseInt(BC128.Input.substr(BC128.Pos * 2, 2), 10);
+        /BC128.Out       BC128.Out BC128.Bars BC128.Val get cats def         %  BC128.Out = BC128.Out + BC128.Chars[BC128.Val];
+        /BC128.Sum       BC128.Sum BC128.Val BC128.Pos 1 add mul add def     %  BC128.Sum = BC128.Sum + (BC128.Pos + 1) * BC128.Val;
+    } for                                                                    % };
+    
+    BC128.Out BC128.Bars BC128.Sum BC128.Modulus mod get cats                % BC128.Out = BC128.Out + BC128.Chars[BC128.Sum % 103] + BC128.Stop;
+    BC128.Stop cats dup BC.calcw BC.mark
+} def
+
+% ============================================================================================================
+/Barcode.128D																 % high Density, Digits only no matter even or odd number
+{
+	/BC128.StartC        (211232)   def
+	/BC128.StartCValue   105        def
+	/BC128.Stop          (2331112)  def
+	/BC128.Modulus       103        def
+	/BC128.ModeB		 (114131)	def
+	/BC128.ModeBValue	 100		def
+	
+    /BC128.Input         exch                         def
+    /BC128.Out           BC128.StartC                 def                    % BC128.Out = BC128.StartC;
+    /BC128.Buffer        128 string                   def                    % 
+    /BC128.Input         BC128.Input BC128.Buffer cvs def                    % BC128.Input = '' + BC128.Input;
+    /BC128.Sum           BC128.StartCValue            def                    % BC128.Sum = BC128.StartCValue;
+    
+    0 1 BC128.Input length 2 idiv 1 sub                                      % for (BC128.Pos = 0; BC128.Pos < BC128.Input.length/2; BC128.Pos++)
+    {                                                                        % {
+        /BC128.Pos       exch def                                            %
+        /BC128.Val       BC128.Input BC128.Pos 2 mul 2 getinterval cvi def   %  BC128.Val = parseInt(BC128.Input.substr(BC128.Pos * 2, 2), 10);
+        /BC128.Out       BC128.Out BC128.Bars BC128.Val get cats def         %  BC128.Out = BC128.Out + BC128.Chars[BC128.Val];
+        /BC128.Sum       BC128.Sum BC128.Val BC128.Pos 1 add mul add def     %  BC128.Sum = BC128.Sum + (BC128.Pos + 1) * BC128.Val;
+    } for                                                                    % };
+    
+    BC128.Input length 2 mod 0 ne											 % if (BC128.Input.length % 2 != 0)
+    {																		 % {
+    	/BC128.Out		 BC128.ModeB cats=									 %	BC128.Out += BC128.ModeB;
+        /BC128.Sum       BC128.ModeBValue BC128.Pos 2 add mul add=    		 %	BC128.Sum += (BC128.Pos + 2) * BC128.ModeBValue;
+    	/BC128.Val		 BC128.Input BC128.Input length 1 sub get 32 sub def %  BC128.Val = Asc(BC128.Input[length(C128.Input) - 1]) - Asc(' ');
+        /BC128.Out       BC128.Bars BC128.Val get cats=						 %  BC128.Out += BC128.Chars[BC128.Val];
+        /BC128.Sum       BC128.Val BC128.Pos 3 add mul add=    				 %  BC128.Sum += (BC128.Pos + 3) * BC128.Val;
+    } if																	 % };
+    
+    BC128.Out BC128.Bars BC128.Sum BC128.Modulus mod get cats                % BC128.Out = BC128.Out + BC128.Chars[BC128.Sum % 103] + BC128.Stop;
+    BC128.Stop cats dup BC.calcw BC.mark
+} def
+
+% ============================================================================================================
+/Barcode.128B
+{
+	/BC128.StartB        (211214)   def
+	/BC128.StartBValue   104        def
+	/BC128.Stop          (2331112)  def
+    /BC128.Modulus       103        def
+    
+    /BC128.Input         exch                         def
+    /BC128.Out           BC128.StartB                 def                    % BC128.Out = BC128.StartC;
+    /BC128.Sum           BC128.StartBValue            def                    % BC128.Sum = BC128.StartCValue;
+    /BC128.Pos          1                             def                    % BC128.Pos = 1;
+    
+    BC128.Input                                                              % for each (c in BC128.Input)
+    {                                                                        % {
+        /BC128.Val       exch 32 sub def                                     %  BC128.Val = Asc(c) - Asc(' ');
+        /BC128.Out       BC128.Out BC128.Bars BC128.Val get cats def         %  BC128.Out = BC128.Out + BC128.Chars[BC128.Val];
+        /BC128.Sum       BC128.Sum BC128.Val BC128.Pos mul add def           %  BC128.Sum = BC128.Sum + BC128.Pos * BC128.Val;
+        /BC128.Pos       BC128.Pos 1 add def                                 %  BC128.Pos++;
+    } forall                                                                 % };
+    
+    BC128.Out BC128.Bars BC128.Sum BC128.Modulus mod get cats                % BC128.Out = BC128.Out + BC128.Chars[BC128.Sum % 103] + BC128.Stop;
+    BC128.Stop cats dup BC.calcw BC.mark
+} def
+% ============================================================================================================
+/Barcode.39
+{
+	/BC.text (*) BC.text cats (*) cats def
+	/BC39.mode true store    
+    /BC39.Input exch def
+    /BC39.SS BC39.Bars /_SS get def
+    /BC39.Out BC39.SS def
+    
+    BC39.Input
+    {
+        cvsx (_) exch cats cvn BC39.Bars exch get
+        /BC39.Out exch BC39.Out exch cats def
+    } forall
+    
+    BC39.Out BC39.SS cats dup BC.calcw BC.mark
+	/BC39.mode false store    
+} def
+% ============================================================================================================
+/Barcode.EAN13
+{
+    /EAN13.Input exch def
+    /EAN13.Out (111) def													% EAN13.Out = (1111);
+    /EAN13.Encoding EAN13.Digit0 EAN13.Input 0 1 getinterval cvi get def	% EAN13.Encoding = EAN13.Digit0[EAN13.Input.charAt(0)];
+    
+    1 1 6 																	% for (pos = 1; pos <= 6; pos++)
+    {																		% {
+    	/pos exch def														%
+    	/current_digit EAN13.Input pos 1 getinterval cvi def				%  current_digit = parseInt(EAN13.Input.chatAt(pos));
+    	/lg EAN13.Encoding pos 1 sub get def								%  lg = EAN13.Encoding[pos - 1];
+    	/currChar EAN13.Symbols lg get current_digit get def				%  currChar = EAN13.Symbols[lg][current_digit];
+    	/EAN13.Out EAN13.Out currChar cats def								%  EAN13.Out += currChar;
+    }																		% };
+    for
+    
+    /EAN13.Out EAN13.Out (11111) cats def									% EAN13.Out += (11111);
+    
+    7 1 11 																	% for (pos = 7; pos <= 11; pos++)
+    {																		% {			
+    	/pos exch def														%
+    	/current_digit EAN13.Input pos 1 getinterval cvi def				%  current_digit = parseInt(EAN13.Input.chatAt(pos));
+    	/currChar EAN13.Symbols 0 get current_digit get def					%  currChar = EAN13.Symbols[0][current_digit];
+    	/EAN13.Out EAN13.Out currChar cats def								%  EAN13.Out += currChar;
+    }																		% };
+    for
+
+	/EAN13.CS 0 def
+	
+	/factor 1 def
+	0 1 11
+	{
+		/i exch def
+		/EAN13.CS EAN13.CS EAN13.Input i 1 getinterval cvi factor mul add def
+		/factor factor 2 xor def
+	} for
+	
+	/EAN13.CS EAN13.CS 10 mod def
+	EAN13.CS 0 ne
+	{
+		/EAN13.CS 10 EAN13.CS sub def
+	} if
+	
+	/BC.text BC.text (0123456789) EAN13.CS 1 getinterval cats def
+
+	/EAN13.Out EAN13.Out EAN13.Symbols 0 get EAN13.CS get cats def
+    EAN13.Out (111) cats dup BC.calcw BC.mark
+} def
+% =======================================================================================
+/Barcode.I2OF5C
+{
+	/I2OF5C.Input exch def
+	/I2OF5C.CS 0 def
+	
+	I2OF5C.Input length 2 mod 1 ne             
+	{                                         
+	    /I2OF5C.Input (0) I2OF5C.Input cats def 
+	} if                                      
+
+	/factor 3 def
+	0 1 I2OF5C.Input length 1 sub 
+	{
+		/i exch def
+		/I2OF5C.CS I2OF5C.Input i 1 getinterval cvi factor mul add=
+		/factor factor 2 xor def
+	} for
+	
+	/I2OF5C.CS 10 mod= I2OF5C.CS 0 ne
+	{
+		/I2OF5C.CS 10 I2OF5C.CS sub def
+	} if
+	I2OF5C.Input (0123456789) I2OF5C.CS 1 getinterval cats 
+	dup /BC.text exch def
+	Barcode.I2OF5
+} def
+
+/Barcode.I2OF5
+{
+	/BCI25.Start	(1111) def
+	/BCI25.Stop		(211) def
+	/BCI25.Input	exch def
+	
+    BCI25.Input length 2 mod 0 ne                                            					% if (BCI25.Input.length % 2 != 0)
+    {                                                                        					% {
+        /BCI25.Input (0) BCI25.Input cats def                                					%   BCI25.Input = '0' + BCI25.Input;
+    } if                                                                     					% };
+
+	/BCI25.Out BCI25.Start def
+	
+	0 1 BCI25.Input length 2 div 1 sub															% for (BCI25.Pos = 0; BCI25.Pos < BCI25.Input.length/2; BCI25.Pos++)
+	{																							% {
+		/BCI25.Pos exch def																		% 
+		/BCI25.First  BCI25.Bars BCI25.Input BCI25.Pos 2 mul       1 getinterval cvi get def	%	BCI25.First  = BCI25.Bars[parseInt(BCI25.Input[BCI25.Pos * 2    ])];
+		/BCI25.Second BCI25.Bars BCI25.Input BCI25.Pos 2 mul 1 add 1 getinterval cvi get def	%	BCI25.Second = BCI25.Bars[parseInt(BCI25.Input[BCI25.Pos * 2 + 1])];
+		0 1 4																					%   for (i = 0; i < 5; i++)
+		{																						%	{
+			/i	exch def																		%
+			/BCI25.Out BCI25.Out BCI25.First  i 1 getinterval cats def							%		BCI25.Out += BCI25.First.charAt(i);
+			/BCI25.Out BCI25.Out BCI25.Second i 1 getinterval cats def							%		BCI25.Out += BCI25.Second.charAt(i);
+		} for																					%	};
+	} for																						% };
+
+	/BC39.mode true store    
+	BCI25.Out BCI25.Stop cats dup BC.calcw BC.mark
+	/BC39.mode false store    
+} def
+% =======================================================================================
+/cvi=	{ dup load cvi store } bind def
+/neg=	{ dup load neg store } bind def
+/++		{ dup load 1 add store } bind def
+/--		{ dup load 1 sub store } bind def
+/add=	{ 1 index load add store } bind def
+/mul=	{ 1 index load mul store } bind def
+/sub=	{ 1 index load exch sub store } bind def
+/div=	{ 1 index load exch div store } bind def
+/mod=	{ 1 index load exch mod store } bind def
+/cats=	{ 1 index load exch cats store } bind def
+% =======================================================================================
+% Trim a string
+% Syntax:	string ltrim -> string
+% 			string rtrim -> string
+% =======================================================================================
+/ltrim
+{
+	3 dict begin /str exch def
+	str length 0 ne
+	{
+	  {
+	  	str 0 get dup 32 eq exch 9 eq or 
+	  	{ /str str 1 str length 1 sub getinterval def str () eq { exit } if } { exit } ifelse
+	  } loop
+	}  if
+	str end
+} def
+
+% =======================================================================================
+/rtrim
+{
+	3 dict begin /str exch def
+	str length 0 ne
+	{
+	  {
+	  	str dup length 1 sub get dup 32 eq exch 9 eq or 
+	  	{ /str str 0 str length 1 sub getinterval def str () eq { exit } if } { exit } ifelse
+	  } loop
+	}  if
+	str end
+} def
+% =======================================================================================
+% Convert a string to upper case, latin & cyrillic, codepage 1251
+% Syntax:	string toUppercase -> string
+% =======================================================================================
+/toUppercase
+{
+	10 dict begin
+	/cyrFirstLC	16#E0 def
+	/cyrLastLC	16#FF def
+	/latFirstLC	16#61 def
+	/latLastLC	16#7A def
+	/cyrUC	<C0C1C2C3C4C5C6C7C8C9CACBCCCDCECFD0D1D2D3D4D5D6D7D8D9DADBDCDDDEDF> def
+	/latUC	<4142434445464748494A4B4C4D4E4F505152535455565758595A> def
+	/s exch def
+	/retval s length string def
+	/strPos 0 def
+	s
+	{
+		/c exch def
+		c cyrFirstLC ge c cyrLastLC le and
+		{
+			retval strPos cyrUC c cyrFirstLC sub 1 getinterval putinterval
+		} if
+		c latFirstLC ge c latLastLC le and
+		{
+			retval strPos latUC c latFirstLC sub 1 getinterval putinterval
+		} if
+		/strPos strPos 1 add store
+	}
+	forall
+	retval end
+}
+bind def
+% =======================================================================================
+% Text reflow and output
+% Syntax:	string textblock ->
+%
+% Set text box parameters for text reflow
+% Syntax: parameters_dict settextblock
+% parameters_dict contents: /X, /Y, /VS (vertical step), /W (text width), /Align
+% Possible /Align values are /Align.left, /Align.right, /Align.centre, /Align.justify
+% =======================================================================================
+/Align.justify
+{
+	/linewidth exch def
+	/str exch def
+	/SPACE 32 def
+	/cnt 0 def
+
+	str dup length 1 sub 1 getinterval ( ) eq
+	{
+		/str str 0 str length 1 sub getinterval def
+	} if
+
+	str
+	{
+		SPACE eq { /cnt ++ } if
+	} forall
+
+	linewidth str stringwidth pop sub cnt div
+	0 SPACE str widthshow
+} bind def
+% =======================================================================================
+/Align.left
+{
+	pop show
+} bind def
+% =======================================================================================
+/Align.right
+{
+	/linewidth exch def
+	/str exch def
+	currentpoint exch 
+	linewidth str stringwidth pop sub add
+	exch moveto
+	str show
+} bind def
+% =======================================================================================
+/Align.centre
+{
+	/linewidth exch def
+	/str exch def
+	currentpoint exch 
+	linewidth str stringwidth pop sub 2 div add
+	exch moveto
+	str show
+} bind def
+% =======================================================================================
+/tb.params << /X 10 mm /Y 10  mmv /VS 4 mm /W 190 mm /Align /Align.left >> def
+/settextblock
+{
+	3 dict begin
+	{
+		/v exch def /k exch def
+		tb.params k v put
+	} forall
+	end
+} bind def
+% =======================================================================================
+/txtb.lf		% textblock linefeed vertical position assignment
+{
+	tb.params /Y tb.params /Y get tb.params /VS get sub put
+} bind def
+
+% =======================================================================================
+/textblock
+{
+	/wordbreak ( ) def
+	/restoftext exch def
+	/restoftext restoftext wordbreak cats def
+	/curline () def
+
+	/proc
+	{
+		tb.params /X get tb.params /Y get moveto tb.params /W get tb.params /Align get load exec txtb.lf
+	} def
+
+	{
+		restoftext wordbreak search
+		{
+			/nextword exch def pop
+			/restoftext exch def
+
+			/linetobe curline nextword cats wordbreak cats def
+			linetobe stringwidth pop tb.params /W get gt
+			{
+				curline proc
+				/curline nextword wordbreak cats def
+			}
+			{
+				/curline linetobe def
+			} ifelse
+		}
+		{
+			pop exit
+		} ifelse
+	} loop
+
+	curline
+	tb.params /Align get /Align.justify ne
+	{
+		proc
+	}
+	{
+		tb.params /X get tb.params /Y get moveto show txtb.lf
+	} ifelse
+} bind def
+% =======================================================================================
+/txtb.getY { tb.params /Y get } bind def
+/txtb.getX { tb.params /X get } bind def
+
+% =======================================================================================
+% setMultiUp syntax (Multi-up arguments dictionary)
+%  <<
+%	/PagesWide    3    % Number of columns
+%	/PagesHigh    8    % Number of rows
+%	/ColumnWidth 70 mm % Column width
+%	/RowHeight   37 mm % Row height
+%  >> setMultiUp
+
+/setMultiUp
+{
+	/multiup.config	exch store
+	/multiup.subPageNo 0 store
+} def
+% =======================================================================================
+/adjustX  % Multi-up adjustment X
+{ 
+	multiup.subPageNo multiup.config /PagesWide get mod  multiup.config /ColumnWidth get mul add 
+} def
+% =======================================================================================
+/adjustY  % Multi-up adjustment Y
+{ 
+	multiup.subPageNo multiup.config /PagesWide get idiv multiup.config /RowHeight   get mul sub 
+} def
+% =======================================================================================
+/nextSubPage % Multi-up next page - adjustment of logical page number
+{
+    /multiup.subPageNo ++
+    multiup.subPageNo multiup.config /PagesWide get multiup.config /PagesHigh get mul ge
+    {
+        showpage
+        /multiup.subPageNo 0 store
+    } if
+} def
+% =======================================================================================
+/multiUpEnd
+{
+	multiup.subPageNo 0 ne { showpage } if
+} def
+% =======================================================================================
+
+% =======================================================================================
+% SLOVOM textual representation of a number as currency in the Bulgarian language
+% =======================================================================================
+/slovom
+{
+	32 dict begin
+
+	% =======================================================================================
+	% Internal method that handles the 0-999 range
+	% =======================================================================================
+	/f999
+	{
+		/names.100 [() (сто)	(двеста)	(триста)	(четиристотин)	(петстотин)	(шестстотин)	(седемстотин)	(осемстотин)	(деветстотин)	(хиляда)] def
+		/names.10  [() (десет)	(двадесет)	(тридесет)	(четиридесет)	(петдесет)	(шестдесет)		(седемдесет)	(осемдесет)		(деветдесет)	(сто)	] def
+	
+		/names.1A  [() (един) (два) (три) (четири) (пет) (шест) (седем) (осем) (девет) (десет) (единадесет) (дванадесет) (тринадесет) (четиринадесет) (петнадесет) (шестнадесет) (седемнадесет) (осемнадесет) (деветнадесет)] def
+		/names.1B  [() (една) (две) (три) (четири) (пет) (шест) (седем) (осем) (девет) (десет) (единадесет) (дванадесет) (тринадесет) (четиринадесет) (петнадесет) (шестнадесет) (седемнадесет) (осемнадесет) (деветнадесет)] def
+	
+		/names.1 exch { names.1A  } { names.1B } ifelse def
+		/n exch def
+		/proc.status false def
+		/retval () def
+		/n.100 n 100 idiv def
+		/n 100 mod=
+		n.100 0 gt
+		{
+			/retval names.100 n.100 get ( ) cats def
+			/proc.status true def
+		} if
+		n 0 gt n 20 lt and
+		{
+			
+			proc.status { /retval (и ) cats= } if
+			/retval names.1 n get ( ) cats cats=
+		}
+		{
+			/n.10 n 10 idiv def
+			/n 10 mod=
+			n.10 0 gt
+			{
+				proc.status n 0 eq and { /retval (и ) cats= } if
+				/retval names.10 n.10 get ( ) cats cats=
+				/proc.status true def
+			} if
+			proc.status n 0 gt and
+			{
+				/retval (и ) names.1 n get cats ( ) cats cats=
+			} if
+				
+		} ifelse
+		retval
+	} bind def
+	% =======================================================================================
+
+	/N exch def 
+	/retval.prefix () def
+	N 0 lt 
+	{
+		/N neg=
+		/retval.prefix (минус ) def
+	} if
+	/N N 100 mul round cvi def
+	/fract N 100 mod def
+	/N N 100 idiv def
+	/mils N 1000000 idiv def /N 1000000 mod=
+	/thousands N 1000 idiv def /N 1000 mod=
+	/ones N def
+	/retval.i () def
+	mils 0 gt		{/retval.i 	mils 1 eq 		{ (един милион ) }	{ mils true f999 (милиона ) cats } 		ifelse cats= } if
+	thousands 0 gt	{/retval.i 	thousands 1 eq	{ (хиляда ) } 		{ thousands false f999 (хиляди ) cats }	ifelse cats= } if
+	retval.i rtrim () ne ones 20 le ones 0 gt and and {/retval.i (и ) cats= } if 
+	ones 0 gt		{/retval.i	ones true f999 cats= } if
+	retval.i rtrim () ne
+	{
+		/retval.i retval.i rtrim (един) eq { (лев) } { (лева) } ifelse cats=
+	} if
+	/retval.f () def
+	fract 0 gt
+	{
+		/retval.f fract false f999 fract 1 eq { (стотинка) } { (стотинки) } ifelse cats cats=
+	} if
+	retval.i rtrim () ne retval.f rtrim () ne and { /retval.i ( и ) cats= } if
+
+	retval.prefix retval.i cats retval.f cats
+	end
+} bind def
+
+% ==============================================================================
+% manyTimes operator; Executes a pair of procedures in a brick-mortar manner
+% i.e. brick-mortar-brick-mortar-brick 
+% Syntax: brickProcedure mortarProcedure numberOfBricks manyTimes
+% ==============================================================================
+/manyTimes
+{
+ gsave
+    1 sub { exch dup exec exch dup exec } repeat pop exec
+ grestore
+} bind def
+
+% ==============================================================================
+% makeForm.A4 function; Creates a cacheable form from an EPS file
+% Syntax: /formName (EPS-filename) makeForm.A4
+% then use it: formName execform
+% ==============================================================================
+/makeForm.A4                                               
+{
+	/__makeForm.filename exch def
+	<< 
+	   /FormType 1
+	   /BBox [0 0 595 842] % A4 portrait
+	   /Matrix [ 1 0 0 1 0 0]
+	   /form.filename __makeForm.filename
+	   /PaintProc
+	   {  
+	      gsave
+	   	  3 dict begin
+	   	  /filename exch /form.filename get def
+	      /ostate save def
+	      /showpage {} def
+	      /setpagedevice /pop load def
+	      filename run
+	      ostate restore
+	      end
+	      grestore
+	   } bind
+	>> def	        
+} def
+
+% =======================================================================================
+
+/execformx
+{
+	dup type /dicttype eq 
+	{ 
+		execform
+	} 
+	{
+		gsave
+		translate
+		execform
+		grestore
+	} ifelse
+} bind def
+
+% ==============================================================================
+% coalesce operator
+% Defines a variable with a default value unless already defined
+% Syntax: /varName defaultValue coalesce
+% ==============================================================================
+/coalesce
+{
+    /defaultValue exch def
+    /varName exch def
+    varName where {pop} {varName defaultValue def} ifelse
+} bind def
+
+% ==============================================================================
+% Underline and strikethrough functions
+% ==============================================================================
+/textline.params
+<<
+	/underlinewidth    0.7
+	/underlinedescend  0.5
+	/strikewidth 	   0.4
+	/strikeascend      2.5
+>> def
+
+% ==============================================================================
+% set.TL.params - Set underline and strikethrough functions parameters
+% 
+% Syntax: << /parameter value [/parameter value] ... >>  set.TL.params
+% Supported parameters: /underlinewidth /underlinedescend /strikewidth /strikeascend
+% Example: << /strikewidth 0.5 /underlinewidth 0.6 /underlinedescend 0.3 >> set.TL.params
+% ==============================================================================
+/set.TL.params
+{
+    {
+        textline.params 3 1 roll put 
+    } forall
+} bind def
+
+% ==============================================================================
+% underlineTextOut - similar to textOut
+% ==============================================================================
+/underlineTextOut
+{
+5 dict begin
+    /y exch def /x exch def /text.in exch def
+    /textwidth text.in stringwidth pop def
+    gsave
+    0 setgray textline.params /underlinewidth get setlinewidth
+    newpath x y textline.params /underlinewidth get sub textline.params /underlinedescend get sub moveto textwidth 0 rlineto stroke
+    grestore
+    x y moveto text.in show
+end
+} bind def
+ 
+% ==============================================================================
+% strikethroughTextOut - similar to textOut
+% ==============================================================================
+/strikethroughTextOut
+{
+5 dict begin
+    /y exch def /x exch def /text.in exch def
+    /textwidth text.in stringwidth pop def
+    gsave
+    0 setgray textline.params /strikewidth get setlinewidth
+    newpath x y textline.params /strikeascend get add moveto textwidth 0 rlineto stroke
+    grestore
+    x y moveto text.in show
+end
+} bind def
+
+% ==============================================================================
+% Inverse textbox functions
+% ==============================================================================
+/inverseTextBox.params
+<<
+    /height     4 mm
+    /width      8 mm
+    /background 1
+    /foreground 0
+    /font.face  /Arial_mbmx
+    /font.size  10
+    /ascend     1.5
+    /fontcache  null
+>> def
+
+% ==============================================================================
+% set.ITB.params - Set inverse textbox functions parameters
+% Syntax: << /parameter value [/parameter value] ... >>  set.ITB.params
+% Supported parameters: /height /width /background /foreground /font.face /font.size /ascend
+% Example: << /height 5 mm /width 10 mm /ascend 3 /font.face /Arial_mbmx-Bold /font.size 12 >> set.ITB.params
+% ==============================================================================
+/set.ITB.params
+{
+    {
+        inverseTextBox.params 3 1 roll put 
+    } forall
+} bind def
+
+% ==============================================================================
+% set.ITB.params - Caches the specified font
+% Syntax: set.ITB.font
+% Must be called at least once before callig inverseTextBox
+% ==============================================================================
+/set.ITB.font
+{
+    inverseTextBox.params
+    /fontcache 
+    inverseTextBox.params /font.face get findfont inverseTextBox.params /font.size get scalefont
+    put
+} bind def
+
+% ==============================================================================
+% inverseTextBox - prints an inverse text box at the current location
+% Syntax: text inverseTextBox
+% Example: (Attention) inverseTextBox
+% ==============================================================================
+/inverseTextBox
+{
+    gsave
+    currentpoint
+
+    newpath 0 setlinewidth
+    1 inverseTextBox.params /background get sub setgray
+    1 index 1 index moveto
+    inverseTextBox.params /width get 0 rlineto
+    0 inverseTextBox.params /height get rlineto
+    inverseTextBox.params /width get neg 0 rlineto
+    closepath fill stroke
+
+    inverseTextBox.params /fontcache get setfont
+
+    inverseTextBox.params /ascend get add
+    exch inverseTextBox.params /width get 3 index stringwidth pop sub 2 div add exch
+    moveto
+    1 inverseTextBox.params /foreground get sub setgray
+    show
+    
+    grestore
+} bind def
+
+
+% =======================================================================================
+% Set default paper size A4 and init the marking system
+% =======================================================================================
+A4 setMediaSize /Courier 6 selectfont ( ) -10 -10 textOut
+% =======================================================================================
+%%EndProlog
+% =======================================================================================
+% printPSXVersion   % Un-comment this line and execute for an info page
